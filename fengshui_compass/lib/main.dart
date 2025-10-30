@@ -3,6 +3,7 @@ import 'pages/compass_page.dart';
 import 'pages/tips_page.dart';
 import 'pages/analysis_page.dart';
 import 'pages/help_page.dart';
+import 'package:fengshui_compass/models/cheat_mode.dart';
 
 void main() {
   runApp(const FengshuiApp());
@@ -29,10 +30,25 @@ class RootTabs extends StatefulWidget {
   State<RootTabs> createState() => _RootTabsState();
 }
 
-enum CheatMode { off, wangCaiWangDing, wangCaiBuWangDing }
-
 class _RootTabsState extends State<RootTabs> {
   int _currentIndex = 0;
+  CheatMode _cheatMode = CheatMode.off; // ← 新的作弊状态
+
+  void _cycleCheatMode() {
+    setState(() {
+      switch (_cheatMode) {
+        case CheatMode.off:
+          _cheatMode = CheatMode.wangCaiWangDing;
+          break;
+        case CheatMode.wangCaiWangDing:
+          _cheatMode = CheatMode.wangCaiBuWangDing;
+          break;
+        case CheatMode.wangCaiBuWangDing:
+          _cheatMode = CheatMode.off;
+          break;
+      }
+    });
+  }
 
   // 罗盘实时数据（由 CompassPage 回调上来）
   double _currentHeadingDeg = 0; // 北基准（向）
@@ -80,8 +96,10 @@ class _RootTabsState extends State<RootTabs> {
         doorDirection: _selectedDoorDir,
         moveInYear: _selectedMoveInYear,
         industry: _selectedIndustry,
+        cheatMode: _cheatMode,
+        onCycleCheatMode: _cycleCheatMode,
       ),
-      const HelpPage(),
+      HelpPage(cheatMode: _cheatMode, onCycleCheatMode: _cycleCheatMode),
     ];
 
     return Scaffold(
@@ -134,7 +152,6 @@ class _RootTabsState extends State<RootTabs> {
     final industries = [
       '住宅/自住',
       '建筑/工程/装修',
-      'IT/互联网/电子',
       '零售/餐饮/店面',
       '教育/培训',
       '金融/投资',

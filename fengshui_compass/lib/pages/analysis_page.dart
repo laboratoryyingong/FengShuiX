@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fengshui_compass/models/fengshui_patterns.dart';
-
-// 和 main.dart 里保持一致
-enum CheatMode { off, wangCaiWangDing, wangCaiBuWangDing }
+import 'package:fengshui_compass/models/cheat_mode.dart';
 
 class AnalysisPage extends StatefulWidget {
   final double currentNorthDeg;
@@ -305,17 +303,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         color: Colors.white60,
                       ),
                     ),
-                  if (cheatTip.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      cheatTip,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.redAccent,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
+                  // if (cheatTip.isNotEmpty) ...[
+                  //   const SizedBox(height: 4),
+                  //   Text(
+                  //     cheatTip,
+                  //     style: const TextStyle(
+                  //       fontSize: 11.5,
+                  //       color: Colors.redAccent,
+                  //       height: 1.2,
+                  //     ),
+                  //   ),
+                  // ],
                   const SizedBox(height: 6),
                   Text(
                     patternDesc,
