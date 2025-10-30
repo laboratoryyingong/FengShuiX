@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fengshui_compass/models/fengshui_patterns.dart';
 
+// 和 main.dart 里保持一致
 enum CheatMode { off, wangCaiWangDing, wangCaiBuWangDing }
 
 class AnalysisPage extends StatefulWidget {
@@ -40,6 +41,7 @@ class AnalysisPage extends StatefulWidget {
 class _AnalysisPageState extends State<AnalysisPage> {
   int _selectedYear = 2025;
 
+  // 24 山名字表
   static const List<String> _mountain24 = [
     '壬',
     '子',
@@ -67,40 +69,41 @@ class _AnalysisPageState extends State<AnalysisPage> {
     '亥',
   ];
 
+  // 简易流年表
   final Map<int, _Year24Data> _yearData = {
-    2025: _Year24Data(
-      wuHuang: [16],
-      erHei: [7, 8],
+    2025: const _Year24Data(
+      wuHuang: [16], // 坤
+      erHei: [7, 8], // 卯 / 乙
       taiSui: [16],
       sanSha: [0, 1, 2],
       note: '2025：西南要静，正东注意健康，可用铜/葫芦。',
     ),
-    2026: _Year24Data(
-      wuHuang: [7, 8],
-      erHei: [10, 11],
-      taiSui: [12, 13, 14],
-      sanSha: [21, 22, 23],
+    2026: const _Year24Data(
+      wuHuang: [7, 8], // 正东
+      erHei: [10, 11], // 东南
+      taiSui: [12, 13, 14], // 南
+      sanSha: [21, 22, 23], // 西北
       note: '2026：东方是大煞，南面是太岁，北坐南向的要注意别正顶太岁。',
     ),
-    2027: _Year24Data(
-      wuHuang: [10, 11],
-      erHei: [12, 13],
-      taiSui: [13, 14, 15],
-      sanSha: [18, 19, 20],
+    2027: const _Year24Data(
+      wuHuang: [10, 11], // 东南
+      erHei: [12, 13], // 正南
+      taiSui: [13, 14, 15], // 午 丁 未
+      sanSha: [18, 19, 20], // 西
       note: '2027：东南动土要慎，西面别坐背西。',
     ),
-    2028: _Year24Data(
-      wuHuang: [12, 13, 14],
-      erHei: [16],
-      taiSui: [16, 17],
-      sanSha: [4, 5, 6],
+    2028: const _Year24Data(
+      wuHuang: [12, 13, 14], // 南
+      erHei: [16], // 坤
+      taiSui: [16, 17], // 西南→申
+      sanSha: [4, 5, 6], // 东北偏东
       note: '2028：南方五黄又遇九运火，要防火土过旺；西南也要静。',
     ),
-    2029: _Year24Data(
-      wuHuang: [16, 17],
-      erHei: [19, 20],
-      taiSui: [19, 20],
-      sanSha: [12, 13, 14],
+    2029: const _Year24Data(
+      wuHuang: [16, 17], // 西南偏西
+      erHei: [19, 20], // 西
+      taiSui: [19, 20], // 西
+      sanSha: [12, 13, 14], // 南
       note: '2029：南方三煞，不要长期坐南背北；西面也不宜动。',
     ),
   };
@@ -112,15 +115,30 @@ class _AnalysisPageState extends State<AnalysisPage> {
     // 1. 根据入住年份推运
     final int period = _guessPeriodByMoveIn(widget.moveInYear);
 
-    // 2. 用模型计算四种格局
-    final pattern = calcFengshuiPattern(
-      period: period,
-      facing24Index: widget.currentNorthIndex24,
-      sitting24Index: widget.currentSouthIndex24,
-      doorDirection8: widget.doorDirection,
-    );
+    // 2. 计算四种格局（带作弊）
+    FengshuiPattern pattern;
+    String cheatTip = '';
+    if (widget.cheatMode == CheatMode.wangCaiWangDing) {
+      pattern = FengshuiPattern.wangCaiWangDing;
+      cheatTip = '⚠ 当前为作弊模式：固定显示【旺财旺丁】';
+    } else if (widget.cheatMode == CheatMode.wangCaiBuWangDing) {
+      pattern = FengshuiPattern.wangCaiBuWangDing;
+      cheatTip = '⚠ 当前为作弊模式：固定显示【旺财不旺丁】';
+    } else {
+      pattern = calcFengshuiPattern(
+        period: period,
+        facing24Index: widget.currentNorthIndex24,
+        sitting24Index: widget.currentSouthIndex24,
+        doorDirection8: widget.doorDirection,
+      );
+    }
     final patternTitle = fengshuiPatternText(pattern);
     final patternDesc = fengshuiPatternRecommend(pattern);
+
+    // 3. 八宅吉凶（用大门方位粗分）
+    final EightHouseResult eightResult = _calcEightHouseByDoor(
+      widget.doorDirection,
+    );
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -129,12 +147,45 @@ class _AnalysisPageState extends State<AnalysisPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '三元九运分析',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            // 标题 + 长按作弊
+            GestureDetector(
+              onLongPress: () {
+                widget.onCycleCheatMode?.call();
+                String msg;
+                switch (widget.cheatMode) {
+                  case CheatMode.off:
+                    msg = '作弊模式：下一档 → 旺财旺丁';
+                    break;
+                  case CheatMode.wangCaiWangDing:
+                    msg = '作弊模式：下一档 → 旺财不旺丁';
+                    break;
+                  case CheatMode.wangCaiBuWangDing:
+                    msg = '作弊模式：关闭';
+                    break;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(msg),
+                    duration: const Duration(seconds: 1),
+                  ),
+                );
+              },
+              child: Row(
+                children: [
+                  const Text(
+                    '三元九运分析',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  if (widget.cheatMode != CheatMode.off) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.shield, color: Colors.amber, size: 18),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 8),
 
+            // 顶图（自己放）
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: Image.asset(
@@ -160,14 +211,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
             ),
             const SizedBox(height: 14),
 
-            // 前提
+            // 前提条件
             _card(
               title: '本次分析的前提条件',
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '大门方位：${widget.doorDirection.isEmpty ? '未选择/自动取当前罗盘方位' : widget.doorDirection}',
+                    '大门方位：${widget.doorDirection.isEmpty ? '未选择/自动用当前罗盘' : widget.doorDirection}',
                     style: const TextStyle(fontSize: 13.5),
                   ),
                   Text(
@@ -180,14 +231,14 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    '说明：请在分析前，将手机正对大门测量一次；入住年份用于判断是7/8/9运；行业用于做应用场景参考。',
+                    '说明：请在分析前，把手机对着大门测一次；大门方位会影响八宅和财气；以后可以加“生日→命卦”让结果更精准。',
                     style: TextStyle(fontSize: 12.5, color: Colors.white60),
                   ),
                 ],
               ),
             ),
 
-            // 罗盘实时
+            // 实时罗盘
             _card(
               title: '当前罗盘数据（实时）',
               child: Column(
@@ -224,7 +275,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
               ),
             ),
 
-            // 风水格局
+            // 四种格局
             _card(
               title: '本宅风水格局（简化玄空）',
               child: Column(
@@ -254,6 +305,17 @@ class _AnalysisPageState extends State<AnalysisPage> {
                         color: Colors.white60,
                       ),
                     ),
+                  if (cheatTip.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      cheatTip,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.redAccent,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Text(
                     patternDesc,
@@ -267,6 +329,36 @@ class _AnalysisPageState extends State<AnalysisPage> {
                   const Text(
                     '提示：这是手机端快速判断版，要做完整玄空飞星还需起盘、看山星/向星、零正、门位/床位落宫。',
                     style: TextStyle(fontSize: 11.5, color: Colors.white38),
+                  ),
+                ],
+              ),
+            ),
+
+            // ✅ 八宅 + 九宫格
+            _card(
+              title: '室内吉凶九宫（八宅+流年飞星提示）',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '依据大门方位推断：${eightResult.group == EightHouseGroup.east ? '东四宅' : '西四宅'}',
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Colors.white70,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  AspectRatio(
+                    aspectRatio: 1,
+                    child: _buildNinePalace(
+                      eightResult: eightResult,
+                      yearData: currentYearInfo,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '说明：请将户型图对正北后，对应本九宫格即可。吉位可放主卧、书房、老板位；凶位可做仓库、卫生间。',
+                    style: TextStyle(fontSize: 11.5, color: Colors.white54),
                   ),
                 ],
               ),
@@ -328,6 +420,7 @@ class _AnalysisPageState extends State<AnalysisPage> {
                 ),
               ),
 
+            // 九运时间表
             _card(
               title: '三元九运时间表',
               child: const Text(
@@ -348,6 +441,151 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
+
+  // ========== 九宫格构建 ==========
+
+  Widget _buildNinePalace({
+    required EightHouseResult eightResult,
+    required _Year24Data? yearData,
+  }) {
+    // 1~9 宫位的名字（先放八宅，后面叠流年）
+    final Map<int, String> palaceName = {
+      1: eightResult.palaceName(1),
+      2: eightResult.palaceName(2),
+      3: eightResult.palaceName(3),
+      4: eightResult.palaceName(4),
+      5: '中宫',
+      6: eightResult.palaceName(6),
+      7: eightResult.palaceName(7),
+      8: eightResult.palaceName(8),
+      9: eightResult.palaceName(9),
+    };
+
+    // 把流年煞位映射到九宫
+    final Map<int, List<String>> palaceBad = {};
+    if (yearData != null) {
+      // 五黄
+      for (final idx in yearData.wuHuang) {
+        final p = _map24ToPalace(idx);
+        palaceBad.putIfAbsent(p, () => []).add('五黄');
+      }
+      // 二黑
+      for (final idx in yearData.erHei) {
+        final p = _map24ToPalace(idx);
+        palaceBad.putIfAbsent(p, () => []).add('二黑');
+      }
+      // 太岁
+      for (final idx in yearData.taiSui) {
+        final p = _map24ToPalace(idx);
+        palaceBad.putIfAbsent(p, () => []).add('太岁');
+      }
+      // 三煞
+      for (final idx in yearData.sanSha) {
+        final p = _map24ToPalace(idx);
+        palaceBad.putIfAbsent(p, () => []).add('三煞');
+      }
+    }
+
+    // 洛书顺序：4 9 2 / 3 5 7 / 8 1 6
+    final order = [4, 9, 2, 3, 5, 7, 8, 1, 6];
+
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.white24),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: GridView.count(
+        crossAxisCount: 3,
+        physics: const NeverScrollableScrollPhysics(),
+        childAspectRatio: 1,
+        padding: EdgeInsets.zero,
+        children: order.map((p) {
+          final isGood = eightResult.isGood(p);
+          final badTags = palaceBad[p] ?? [];
+          return Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white24, width: 0.4),
+            ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '宫$p',
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: Colors.white.withOpacity(0.6),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          palaceName[p] ?? '',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: isGood
+                                ? Colors.greenAccent
+                                : Colors.redAccent,
+                          ),
+                        ),
+                        if (badTags.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 3,
+                            runSpacing: -4,
+                            children: badTags
+                                .map(
+                                  (t) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 3,
+                                      vertical: 1,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.25),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      t,
+                                      style: const TextStyle(
+                                        fontSize: 9,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  // ========== 八宅简化计算 ==========
+
+  EightHouseResult _calcEightHouseByDoor(String doorDir) {
+    // 非常粗的分法：东四 / 西四
+    final east =
+        doorDir.contains('东') || doorDir.contains('南') || doorDir.contains('北');
+    if (east) {
+      return EightHouseResult.eastGroup();
+    } else {
+      return EightHouseResult.westGroup();
+    }
+  }
+
+  // ========== 其它工具 ==========
 
   int _guessPeriodByMoveIn(int moveInYear) {
     if (moveInYear >= 2024) return 9;
@@ -389,10 +627,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
 
     final List<String> warns = [];
     if (faceHit) {
-      warns.add('⚠ 你的“向”落在本年重点位上，请不要在这个方向开门、动土或放水。');
+      warns.add('⚠ “向”落在本年重点位上，请不要在这个方向开门、动土或放水。');
     }
     if (sitHit) {
-      warns.add('⚠ 你的“坐”落在本年重点位上，床/沙发/办公位尽量别正顶着这里，可微调 15°。');
+      warns.add('⚠ “坐”落在本年重点位上，床/沙发/办公位尽量别正顶着这里，可微调 15°。');
     }
 
     return Text(
@@ -443,7 +681,24 @@ class _AnalysisPageState extends State<AnalysisPage> {
       ),
     );
   }
+
+  // 把 24 山归到 9 宫（简化版映射）
+  // 北 → 1 宫；东北 → 8；东 → 3；东南 → 4；南 → 9；西南 → 2；西 → 7；西北 → 6；中宫 5 不用
+  int _map24ToPalace(int idx24) {
+    // 按你的 24 山顺序来分：0壬1子2癸(北) / 3丑4艮5寅(东北) / 6甲7卯8乙(东) / 9辰10巽11巳(东南)
+    // 12丙13午14丁(南) / 15未16坤17申(西南) / 18庚19酉20辛(西) / 21戌22乾23亥(西北)
+    if (idx24 <= 2) return 1; // 北
+    if (idx24 <= 5) return 8; // 东北
+    if (idx24 <= 8) return 3; // 东
+    if (idx24 <= 11) return 4; // 东南
+    if (idx24 <= 14) return 9; // 南
+    if (idx24 <= 17) return 2; // 西南
+    if (idx24 <= 20) return 7; // 西
+    return 6; // 西北
+  }
 }
+
+// ====== 数据结构们 ======
 
 class _Year24Data {
   final List<int> wuHuang;
@@ -501,4 +756,65 @@ class _line extends StatelessWidget {
       ),
     );
   }
+}
+
+// ====== 八宅结果对象（简化版） ======
+
+enum EightHouseGroup { east, west }
+
+class EightHouseResult {
+  final EightHouseGroup group;
+  // palace → name
+  final Map<int, String> palaceNames;
+  final Set<int> goodPalaces;
+
+  const EightHouseResult({
+    required this.group,
+    required this.palaceNames,
+    required this.goodPalaces,
+  });
+
+  factory EightHouseResult.eastGroup() {
+    // 东四：坎、离、震、巽 → 生气、天医、延年、伏位 放在东/东南/南/北这些宫
+    return EightHouseResult(
+      group: EightHouseGroup.east,
+      palaceNames: {
+        1: '伏位',
+        2: '六煞',
+        3: '生气',
+        4: '天医',
+        5: '中宫',
+        6: '五鬼',
+        7: '祸害',
+        8: '延年',
+        9: '绝命',
+      },
+      goodPalaces: {1, 3, 4, 8},
+    );
+  }
+
+  factory EightHouseResult.westGroup() {
+    // 西四：乾、兑、艮、坤
+    return EightHouseResult(
+      group: EightHouseGroup.west,
+      palaceNames: {
+        1: '祸害',
+        2: '天医',
+        3: '五鬼',
+        4: '六煞',
+        5: '中宫',
+        6: '延年',
+        7: '伏位',
+        8: '绝命',
+        9: '生气',
+      },
+      goodPalaces: {2, 6, 7, 9},
+    );
+  }
+
+  String palaceName(int palace) {
+    return palaceNames[palace] ?? '';
+  }
+
+  bool isGood(int palace) => goodPalaces.contains(palace);
 }

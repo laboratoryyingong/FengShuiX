@@ -168,7 +168,6 @@ class TipsPage extends StatelessWidget {
             ),
             _ItemCard(
               title: '流年五黄位',
-              image: 'assets/fengshui/liunian_wuhuang.jpg',
               effect: '五黄属大煞，主意外、破耗、血光，要压要化。',
               scenario: '当年的五黄所在方位（每年位置会换，需要你在“说明”或“分析”里写出来）。',
               placement: '用金属化（土生金、金泄其势），可放铜葫芦、六帝钱、小铜钟。',
@@ -176,7 +175,6 @@ class TipsPage extends StatelessWidget {
             ),
             _ItemCard(
               title: '流年二黑病符位',
-              image: 'assets/fengshui/liunian_bingfu.jpg',
               effect: '主疾病、慢性烦恼，可用葫芦来收、用金属来弱化。',
               scenario: '当年二黑所在的宫位，家里有老人/孕妇要特别注意。',
               placement: '放铜制葫芦、金属摆件，或者你前面说的葫芦挂件。',
@@ -184,7 +182,6 @@ class TipsPage extends StatelessWidget {
             ),
             _ItemCard(
               title: '太岁 / 岁破位',
-              image: 'assets/fengshui/liunian_taisui.jpg',
               effect: '太岁头上不可动土，主要是“避”不是“补”。',
               scenario: '当年的太岁方位（正对的反向是岁破），常见是不要在这开工/拆柜。',
               placement: '保持清净、少动、可以简单放一件化煞的小铜器。',
@@ -192,7 +189,6 @@ class TipsPage extends StatelessWidget {
             ),
             _ItemCard(
               title: '流年三煞',
-              image: 'assets/fengshui/liunian_sansha.jpg',
               effect: '三煞主破财、小人、口舌，重点是“别冲、别犯、别坐背后”。',
               scenario: '当年三煞的方位；办公桌、沙发尽量不要背对三煞。',
               placement: '可用金属风铃、葫芦、麒麟/狮子一类的挡一下。',
@@ -200,7 +196,6 @@ class TipsPage extends StatelessWidget {
             ),
             _ItemCard(
               title: '流年桃花位化解',
-              image: 'assets/fengshui/liunian_taohua.jpg',
               effect: '有烂桃花/感情不稳，可以把流年桃花位“管一下”。',
               scenario: '当年桃花位落在卧室、床边、门口时。',
               placement: '可以用金属物件、葫芦或绿植来“正一正”，也可以干脆保持干净不要乱摆香水鞋子。',
