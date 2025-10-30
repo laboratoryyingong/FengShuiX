@@ -15,7 +15,7 @@ class FengshuiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '风水罗盘',
+      title: '风水X',
       theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
       debugShowCheckedModeBanner: false,
       home: const RootTabs(),
