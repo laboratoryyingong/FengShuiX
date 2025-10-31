@@ -9,8 +9,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   flutter_compass: ^0.8.1
   sensors_plus: ^7.0.0
+  flutter_open_chinese_convert: ^0.7.0
 
 dev_dependencies:
   flutter_test:
@@ -26,6 +29,7 @@ flutter:
     - assets/fengshui/
     - assets/analysis/
   uses-material-design: true
+  generate: true
 
 flutter_launcher_icons:
   android: false

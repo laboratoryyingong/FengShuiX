@@ -16,7 +16,19 @@ class CompassPage extends StatefulWidget {
   })?
   onHeadingChanged;
 
-  const CompassPage({super.key, this.onHeadingChanged});
+  /// 新增：跟全局保持一致的简/繁
+  final bool useTraditional;
+
+  /// 新增：如果你想在这页里也用 flutter_open_chinese_convert，就传这个
+  /// 不传也可以，当前这版都是手写繁体
+  final Future<String> Function(String text)? tr;
+
+  const CompassPage({
+    super.key,
+    this.onHeadingChanged,
+    this.useTraditional = false,
+    this.tr,
+  });
 
   @override
   State<CompassPage> createState() => _CompassPageState();
@@ -114,9 +126,11 @@ class _CompassPageState extends State<CompassPage> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('已根据摇晃动作重新校正电子罗盘准确度'),
-          duration: Duration(seconds: 1),
+        SnackBar(
+          content: Text(
+            widget.useTraditional ? '已根據搖晃動作重新校正電子羅盤準確度' : '已根据摇晃动作重新校正电子罗盘准确度',
+          ),
+          duration: const Duration(seconds: 1),
         ),
       );
     }
@@ -137,8 +151,16 @@ class _CompassPageState extends State<CompassPage> {
     final int northIdx = _degTo24Index(north);
     final int southIdx = _degTo24Index(south);
 
-    final facingText = _angleTo24Mountains(north, prefix: '向：');
-    final sittingText = _angleTo24Mountains(south, prefix: '坐：');
+    final facingText = _angleTo24Mountains(
+      north,
+      prefix: widget.useTraditional ? '向：' : '向：',
+      useTraditional: widget.useTraditional,
+    );
+    final sittingText = _angleTo24Mountains(
+      south,
+      prefix: widget.useTraditional ? '坐：' : '坐：',
+      useTraditional: widget.useTraditional,
+    );
 
     setState(() {
       _rawHeading = avg;
@@ -174,16 +196,22 @@ class _CompassPageState extends State<CompassPage> {
 
   String get _accuracyLabel {
     final d = _accuracyDeg;
-    if (d <= 10) return '满意';
-    if (d <= 15) return '普通';
-    return '错误';
+    if (d <= 10) return widget.useTraditional ? '滿意' : '满意';
+    if (d <= 15) return widget.useTraditional ? '普通' : '普通';
+    return widget.useTraditional ? '錯誤' : '错误';
   }
 
   String get _accuracyDisplay {
-    return '准确度：$_accuracyLabel (±${_accuracyDeg.toStringAsFixed(0)}°)';
+    return widget.useTraditional
+        ? '準確度：$_accuracyLabel (±${_accuracyDeg.toStringAsFixed(0)}°)'
+        : '准确度：$_accuracyLabel (±${_accuracyDeg.toStringAsFixed(0)}°)';
   }
 
-  String _angleTo24Mountains(double deg, {String prefix = ''}) {
+  String _angleTo24Mountains(
+    double deg, {
+    String prefix = '',
+    bool useTraditional = false,
+  }) {
     const names = [
       '壬',
       '子',
@@ -212,14 +240,17 @@ class _CompassPageState extends State<CompassPage> {
     ];
     int idx = _degTo24Index(deg);
     final m = names[idx];
-    final dir = _to8Dir(deg);
+    final dir = _to8Dir(deg, useTraditional: useTraditional);
     return '$prefix$dir-$m';
   }
 
-  String _to8Dir(double deg) {
+  String _to8Dir(double deg, {bool useTraditional = false}) {
+    // 简/繁里其实就“东→東”
     const dirs = ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
     int idx = ((deg + 22.5) / 45).floor() % 8;
-    return dirs[idx];
+    String d = dirs[idx];
+    if (!useTraditional) return d;
+    return d.replaceAll('东', '東');
   }
 
   @override
@@ -249,6 +280,9 @@ class _CompassPageState extends State<CompassPage> {
                       northBaseDeg: _finalHeading,
                       southBaseDeg: _southBaseHeading,
                       showCrosshair: _showCrosshair,
+                      useTraditional: widget.useTraditional,
+                      // 如果你想传 flutter_open_chinese_convert 的函数进来就这样：
+                      tr: widget.tr,
                     ),
                   ),
                 ),
@@ -279,7 +313,11 @@ class _CompassPageState extends State<CompassPage> {
                 icon: Icon(
                   _showCrosshair ? Icons.visibility : Icons.visibility_off,
                 ),
-                label: Text(_showCrosshair ? '隐藏十字线' : '显示十字线'),
+                label: Text(
+                  _showCrosshair
+                      ? (widget.useTraditional ? '隱藏十字線' : '隐藏十字线')
+                      : (widget.useTraditional ? '顯示十字線' : '显示十字线'),
+                ),
               ),
             ),
             // 右上准确度+修正
@@ -299,9 +337,12 @@ class _CompassPageState extends State<CompassPage> {
                       color: Colors.black.withOpacity(0.45),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _accuracyLabel == '满意'
+                        color:
+                            _accuracyLabel ==
+                                (widget.useTraditional ? '滿意' : '满意')
                             ? Colors.green
-                            : (_accuracyLabel == '普通'
+                            : (_accuracyLabel ==
+                                      (widget.useTraditional ? '普通' : '普通')
                                   ? Colors.orange
                                   : Colors.red),
                         width: 1,
@@ -328,7 +369,10 @@ class _CompassPageState extends State<CompassPage> {
                     onPressed: () {
                       _showCorrectionDialog(context);
                     },
-                    child: const Text('修正', style: TextStyle(fontSize: 12)),
+                    child: Text(
+                      widget.useTraditional ? '修正' : '修正',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ],
               ),
@@ -340,6 +384,7 @@ class _CompassPageState extends State<CompassPage> {
   }
 
   Widget _buildLevelIndicator(bool isLevel) {
+    final bool zhTW = widget.useTraditional;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -365,7 +410,7 @@ class _CompassPageState extends State<CompassPage> {
           ),
           const SizedBox(width: 4),
           Text(
-            isLevel ? '已水平' : '请保持水平',
+            isLevel ? (zhTW ? '已水平' : '已水平') : (zhTW ? '請保持水平' : '请保持水平'),
             style: const TextStyle(color: Colors.white, fontSize: 12),
           ),
         ],
@@ -374,26 +419,39 @@ class _CompassPageState extends State<CompassPage> {
   }
 
   void _showCorrectionDialog(BuildContext context) {
+    final bool zhTW = widget.useTraditional;
+
+    final String title = zhTW ? '電子羅盤修正' : '电子罗盘修正';
+    final String content = zhTW
+        ? '由於電磁波的干擾，電子羅盤顯示的方向誤差可能會比較大。\n\n'
+              '準確度分為三級：\n'
+              '• ±0－10：滿意\n'
+              '• ±11－15：普通\n'
+              '• ±16＋：錯誤\n\n'
+              '想要提高電子羅盤的準確度，請快速搖晃您的裝置多次，讓羅盤重新校準到正確的方向。\n'
+              '如果仍然不正確，請移動到電磁干擾較小的位置重新量度，或改用手動輸入大門方向。'
+        : '由于电磁波的干扰，电子罗盘显示的方向误差可能会比较大。\n\n'
+              '准确度分为三级：\n'
+              '• ±0－10：满意\n'
+              '• ±11－15：普通\n'
+              '• ±16＋：错误\n\n'
+              '想要提高电子罗盘的准确度，请快速摇晃您的装置多次，让罗盘重新校准到正确的方向。\n'
+              '如果仍然不正确，请移动到电磁干扰较小的位置重新量度，或改用手动输入大门方向。';
+
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
           backgroundColor: Colors.grey.shade900,
-          title: const Text('电子罗盘修正', style: TextStyle(color: Colors.white)),
-          content: const Text(
-            '由于电磁波的干扰，电子罗盘显示的方向误差可能会比较大。\n\n'
-            '准确度分为三级：\n'
-            '• ±0－10：满意\n'
-            '• ±11－15：普通\n'
-            '• ±16＋：错误\n\n'
-            '想要提高电子罗盘的准确度，请快速摇晃您的装置多次，让罗盘重新校准到正确的方向。\n'
-            '如果仍然不正确，请移动到电磁干扰较小的位置重新量度，或改用手动输入大门方向。',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
+          title: Text(title, style: const TextStyle(color: Colors.white)),
+          content: Text(
+            content,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('确定'),
+              child: Text(zhTW ? '確定' : '确定'),
             ),
           ],
         );

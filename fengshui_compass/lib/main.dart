@@ -1,30 +1,120 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_open_chinese_convert/flutter_open_chinese_convert.dart';
+
 import 'pages/compass_page.dart';
 import 'pages/tips_page.dart';
 import 'pages/analysis_page.dart';
 import 'pages/help_page.dart';
 import 'package:fengshui_compass/models/cheat_mode.dart';
 
-void main() {
+Future<void> main() async {
+  // 有些时候要先确保 binding 初始化
+  WidgetsFlutterBinding.ensureInitialized();
+  // 这个包不需要全局 init，但提早 binding 是好的
   runApp(const FengshuiApp());
 }
 
-class FengshuiApp extends StatelessWidget {
+class FengshuiApp extends StatefulWidget {
   const FengshuiApp({super.key});
 
   @override
+  State<FengshuiApp> createState() => _FengshuiAppState();
+}
+
+class _FengshuiAppState extends State<FengshuiApp> {
+  /// true = 用繁體（S2TW）
+  bool _useTraditional = false;
+
+  /// 简 → 繁 的本地缓存，防止同一句话每次都转
+  final Map<String, String> _convertCache = {};
+
+  void _toggleLang() {
+    setState(() {
+      _useTraditional = !_useTraditional;
+    });
+  }
+
+  /// 自动简转繁（用 flutter_open_chinese_convert）
+  /// 用法：await _tr("风水罗盘")
+  Future<String> _tr(String text) async {
+    // 不用繁体就直接返回
+    if (!_useTraditional) return text;
+
+    // 先查缓存
+    if (_convertCache.containsKey(text)) {
+      return _convertCache[text]!;
+    }
+
+    // 用 S2TW（简体 → 台湾繁体）你也可以换成 S2T / S2HK / S2TWp
+    final converted = await ChineseConverter.convert(text, S2TW());
+    _convertCache[text] = converted;
+    return converted;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final currentLocale = _useTraditional
+        ? const Locale('zh', 'TW')
+        : const Locale('zh', 'CN');
+
     return MaterialApp(
-      title: '风水X',
+      title: _useTraditional ? '風水X' : '风水X',
       theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
       debugShowCheckedModeBanner: false,
-      home: const RootTabs(),
+
+      // 把开关和转换函数往下传
+      home: RootTabs(
+        onToggleLang: _toggleLang,
+        useTraditional: _useTraditional,
+        tr: _tr,
+      ),
+
+      builder: (context, child) {
+        // 全局放大
+        Widget body = MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaleFactor: 1.5),
+          child: child!,
+        );
+
+        // 强制用 zh_TW / zh_CN（路线 C）
+        body = Localizations.override(
+          context: context,
+          locale: currentLocale,
+          child: body,
+        );
+
+        return body;
+      },
+
+      // 本地化
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('zh', 'CN'),
+        Locale('zh', 'TW'),
+        Locale('zh', 'HK'),
+        Locale('en'),
+      ],
     );
   }
 }
 
 class RootTabs extends StatefulWidget {
-  const RootTabs({super.key});
+  const RootTabs({
+    super.key,
+    required this.onToggleLang,
+    required this.useTraditional,
+    required this.tr,
+  });
+
+  final VoidCallback onToggleLang;
+  final bool useTraditional;
+  // 这是上面传下来的自动转换函数（async）
+  final Future<String> Function(String text) tr;
 
   @override
   State<RootTabs> createState() => _RootTabsState();
@@ -32,7 +122,20 @@ class RootTabs extends StatefulWidget {
 
 class _RootTabsState extends State<RootTabs> {
   int _currentIndex = 0;
-  CheatMode _cheatMode = CheatMode.off; // ← 新的作弊状态
+  CheatMode _cheatMode = CheatMode.off;
+
+  // 罗盘实时数据（保持你原来的）
+  double _currentHeadingDeg = 0;
+  double _currentSouthDeg = 180;
+  String _currentFacingText = '';
+  String _currentSittingText = '';
+  int _currentNorthIndex24 = 1;
+  int _currentSouthIndex24 = 13;
+
+  // 分析弹窗选的
+  String _selectedDoorDir = '';
+  int _selectedMoveInYear = 2025;
+  String _selectedIndustry = '';
 
   void _cycleCheatMode() {
     setState(() {
@@ -49,19 +152,6 @@ class _RootTabsState extends State<RootTabs> {
       }
     });
   }
-
-  // 罗盘实时数据（由 CompassPage 回调上来）
-  double _currentHeadingDeg = 0; // 北基准（向）
-  double _currentSouthDeg = 180; // 南基准（坐）
-  String _currentFacingText = '';
-  String _currentSittingText = '';
-  int _currentNorthIndex24 = 1; // 子
-  int _currentSouthIndex24 = 13; // 午
-
-  // 分析弹窗选的
-  String _selectedDoorDir = '';
-  int _selectedMoveInYear = 2025;
-  String _selectedIndustry = '';
 
   void _onHeadingFromCompass({
     required double northDeg,
@@ -83,9 +173,17 @@ class _RootTabsState extends State<RootTabs> {
 
   @override
   Widget build(BuildContext context) {
+    // ① 先来个同步的，用于我们已经知道繁体怎么写的情况
+    String t(String zhCN, String zhTW) => widget.useTraditional ? zhTW : zhCN;
+
+    // ② 下面四个页面
     final pages = [
-      CompassPage(onHeadingChanged: _onHeadingFromCompass),
-      const TipsPage(),
+      CompassPage(
+        onHeadingChanged: _onHeadingFromCompass,
+        useTraditional: widget.useTraditional,
+        tr: widget.tr, // 如果你想把 async 转换也带下来
+      ),
+      TipsPage(useTraditional: widget.useTraditional, tr: widget.tr),
       AnalysisPage(
         currentNorthDeg: _currentHeadingDeg,
         currentSouthDeg: _currentSouthDeg,
@@ -98,8 +196,15 @@ class _RootTabsState extends State<RootTabs> {
         industry: _selectedIndustry,
         cheatMode: _cheatMode,
         onCycleCheatMode: _cycleCheatMode,
+        useTraditional: widget.useTraditional, // ← 新增
+        tr: widget.tr, // ← 如果你 main 里有转函数的话
       ),
-      HelpPage(cheatMode: _cheatMode, onCycleCheatMode: _cycleCheatMode),
+      HelpPage(
+        cheatMode: _cheatMode,
+        onCycleCheatMode: _cycleCheatMode,
+        useTraditional: widget.useTraditional,
+        tr: widget.tr, // 要是你想用 async 转的也可以传
+      ),
     ];
 
     return Scaffold(
@@ -111,53 +216,79 @@ class _RootTabsState extends State<RootTabs> {
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
         onTap: (i) async {
-          // 如果是“分析”，先弹框
           if (i == 2) {
-            final ok = await _showAnalysisPrompt(context);
+            final ok = await _showAnalysisPrompt(context, t);
             if (!ok) return;
           }
           setState(() {
             _currentIndex = i;
           });
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.explore), label: '罗盘'),
+        // 这里我们用“同步”的繁体（写死的），因为 BottomNavigationBar 不适合等 Future
+        items: [
           BottomNavigationBarItem(
-            icon: Icon(Icons.lightbulb_outline),
-            label: '锦囊',
+            icon: const Icon(Icons.explore),
+            label: t('罗盘', '羅盤'),
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.analytics_outlined),
-            label: '分析',
+            icon: const Icon(Icons.lightbulb_outline),
+            label: t('锦囊', '錦囊'),
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.info_outline), label: '说明'),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.analytics_outlined),
+            label: t('分析', '分析'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.info_outline),
+            label: t('说明', '說明'),
+          ),
         ],
+      ),
+
+      // 右下角切换 简 / 繁
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: Colors.amber,
+        onPressed: widget.onToggleLang,
+        child: Text(
+          widget.useTraditional ? '简' : '繁',
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
 
-  Future<bool> _showAnalysisPrompt(BuildContext context) async {
-    // 用当前罗盘方位自动生成一个 8 方位作为默认大门
+  // 这个跟你原来的一样，只是我加了同步的 t(...) 进来
+  Future<bool> _showAnalysisPrompt(
+    BuildContext context,
+    String Function(String, String) t,
+  ) async {
     final String doorFromCompass = _to8Dir(_currentHeadingDeg);
 
-    // 弹窗里的临时变量，优先用用户上次选的，没有就用罗盘的
     String doorDir = _selectedDoorDir.isNotEmpty
         ? _selectedDoorDir
         : doorFromCompass;
     int moveInYear = _selectedMoveInYear;
     String industry = _selectedIndustry;
 
-    final years = List<int>.generate(40, (i) => 2025 - i); // 2025~1986
-    final doorOptions = ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
-    final industries = [
-      '住宅/自住',
-      '建筑/工程/装修',
-      '零售/餐饮/店面',
-      '教育/培训',
-      '金融/投资',
-      '工厂/仓储',
-      '其他',
-    ];
+    final years = List<int>.generate(40, (i) => 2025 - i);
+    final doorOptions = ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北']
+        .map(
+          (e) => widget.useTraditional
+              ? e
+                    .replaceAll('东', '東')
+                    .replaceAll('西', '西')
+                    .replaceAll('南', '南')
+                    .replaceAll('北', '北')
+              : e,
+        )
+        .toList();
+
+    final industries = widget.useTraditional
+        ? ['住宅/自住', '建築/工程/裝修', '零售/餐飲/店面', '教育/培訓', '金融/投資', '工廠/倉儲', '其他']
+        : ['住宅/自住', '建筑/工程/装修', '零售/餐饮/店面', '教育/培训', '金融/投资', '工厂/仓储', '其他'];
 
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -188,17 +319,20 @@ class _RootTabsState extends State<RootTabs> {
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const Text(
-                    '请选择相应的大门方位、入住年份及行业后再查看分析',
-                    style: TextStyle(
+                  Text(
+                    t('请选择相应的大门方位、入住年份及行业后再查看分析', '請選擇相應的大門方位、入住年份及行業後再查看分析'),
+                    style: const TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 6),
-                  const Text(
-                    '提示：进入分析前，请把手机正对大门量一次，系统会自动把当前罗盘方位当成大门方位。',
-                    style: TextStyle(
+                  Text(
+                    t(
+                      '提示：进入分析前，请把手机正对大门量一次，系统会自动把当前罗盘方位当成大门方位。',
+                      '提示：進入分析前，請把手機正對大門量一次，系統會自動把當前羅盤方位當成大門方位。',
+                    ),
+                    style: const TextStyle(
                       fontSize: 12.5,
                       color: Colors.white54,
                       height: 1.25,
@@ -210,7 +344,7 @@ class _RootTabsState extends State<RootTabs> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      '大门方位',
+                      t('大门方位', '大門方位'),
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.85),
@@ -237,7 +371,7 @@ class _RootTabsState extends State<RootTabs> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      '入住年份',
+                      t('入住年份', '入住年份'),
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.85),
@@ -266,7 +400,7 @@ class _RootTabsState extends State<RootTabs> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      '行业',
+                      t('行业', '行業'),
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.85),
@@ -294,7 +428,7 @@ class _RootTabsState extends State<RootTabs> {
                       Expanded(
                         child: TextButton(
                           onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const Text('取消'),
+                          child: Text(t('取消', '取消')),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -307,9 +441,11 @@ class _RootTabsState extends State<RootTabs> {
                           onPressed: () {
                             if (doorDir.isEmpty || moveInYear == 0) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('请先选择大门方位和入住年份'),
-                                  duration: Duration(seconds: 1),
+                                SnackBar(
+                                  content: Text(
+                                    t('请先选择大门方位和入住年份', '請先選擇大門方位和入住年份'),
+                                  ),
+                                  duration: const Duration(seconds: 1),
                                 ),
                               );
                               return;
@@ -321,7 +457,7 @@ class _RootTabsState extends State<RootTabs> {
                             });
                             Navigator.of(ctx).pop(true);
                           },
-                          child: const Text('确定'),
+                          child: Text(t('确定', '確定')),
                         ),
                       ),
                     ],
@@ -354,7 +490,6 @@ class _RootTabsState extends State<RootTabs> {
     );
   }
 
-  /// 把 0~360° 的北基准转成 8 大方位
   String _to8Dir(double deg) {
     final dirs = ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
     int idx = ((deg + 22.5) / 45).floor() % 8;
