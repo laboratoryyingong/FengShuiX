@@ -1,3 +1,4 @@
+import 'dart:async'; // 👈 新增：为了 StreamSubscription
 import 'dart:math' as math;
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -16,11 +17,7 @@ class CompassPage extends StatefulWidget {
   })?
   onHeadingChanged;
 
-  /// 新增：跟全局保持一致的简/繁
   final bool useTraditional;
-
-  /// 新增：如果你想在这页里也用 flutter_open_chinese_convert，就传这个
-  /// 不传也可以，当前这版都是手写繁体
   final Future<String> Function(String text)? tr;
 
   const CompassPage({
@@ -35,6 +32,10 @@ class CompassPage extends StatefulWidget {
 }
 
 class _CompassPageState extends State<CompassPage> {
+  // 👇 新增：把两个监听都存下来
+  StreamSubscription<CompassEvent>? _compassSub;
+  StreamSubscription<AccelerometerEvent>? _accelSub;
+
   double _rawHeading = 0;
   double _offset = 0;
   final List<double> _smoothBuffer = [];
@@ -58,14 +59,18 @@ class _CompassPageState extends State<CompassPage> {
 
     _accuracyDeg = _randomAccuracyInit();
 
-    FlutterCompass.events?.listen((event) {
+    // ✅ 1. 指南针订阅
+    _compassSub = FlutterCompass.events?.listen((event) {
+      if (event == null) return;
       final h = event.heading;
       if (h == null) return;
       _onNewHeading(h);
 
+      // 更新精度这块也要防止 setState after dispose
       if (event.accuracy != null) {
         final deviceAcc = event.accuracy!.abs();
         if (!_accuracyLocked || deviceAcc < _accuracyDeg) {
+          if (!mounted) return;
           setState(() {
             _accuracyDeg = deviceAcc;
             _accuracyLocked = false;
@@ -74,7 +79,11 @@ class _CompassPageState extends State<CompassPage> {
       }
     });
 
-    accelerometerEvents.listen((AccelerometerEvent event) {
+    // ✅ 2. 加速度计订阅
+    _accelSub = accelerometerEvents.listen((AccelerometerEvent event) {
+      // 页面被关了以后也别再处理
+      if (!mounted) return;
+
       final double x = event.x;
       final double y = event.y;
       final double z = event.z;
@@ -87,6 +96,7 @@ class _CompassPageState extends State<CompassPage> {
       const double threshold = 7.0;
       final bool level = pitch.abs() < threshold && roll.abs() < threshold;
       if (level != _isLevel) {
+        if (!mounted) return;
         setState(() {
           _isLevel = level;
         });
@@ -102,6 +112,16 @@ class _CompassPageState extends State<CompassPage> {
     });
   }
 
+  @override
+  void dispose() {
+    // 👇 非常重要：离开页面就取消监听
+    _compassSub?.cancel();
+    _accelSub?.cancel();
+    _compassSub = null;
+    _accelSub = null;
+    super.dispose();
+  }
+
   double _randomAccuracyInit() {
     return (8 + _random.nextInt(13)).toDouble();
   }
@@ -111,32 +131,35 @@ class _CompassPageState extends State<CompassPage> {
   }
 
   void _onShake() {
+    if (!mounted) return;
+
     setState(() {
       _accuracyDeg = _randomAccuracyAfterShake();
       _accuracyLocked = true;
     });
 
+    // 5 秒后解锁要再检查 mounted
     Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _accuracyLocked = false;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _accuracyLocked = false;
+      });
     });
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.useTraditional ? '已根據搖晃動作重新校正電子羅盤準確度' : '已根据摇晃动作重新校正电子罗盘准确度',
-          ),
-          duration: const Duration(seconds: 1),
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          widget.useTraditional ? '已根據搖晃動作重新校正電子羅盤準確度' : '已根据摇晃动作重新校正电子罗盘准确度',
         ),
-      );
-    }
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   void _onNewHeading(double h) {
+    // 这里是频繁进来的，要很小心 mounted
+
     _smoothBuffer.add(h);
     if (_smoothBuffer.length > _smoothWindow) {
       _smoothBuffer.removeAt(0);
@@ -162,18 +185,22 @@ class _CompassPageState extends State<CompassPage> {
       useTraditional: widget.useTraditional,
     );
 
+    if (!mounted) return;
     setState(() {
       _rawHeading = avg;
     });
 
-    widget.onHeadingChanged?.call(
-      northDeg: north,
-      southDeg: south,
-      facingText: facingText,
-      sittingText: sittingText,
-      northIndex24: northIdx,
-      southIndex24: southIdx,
-    );
+    // 这里也要防止页面已经被销毁但外面还持有这个 callback
+    if (mounted) {
+      widget.onHeadingChanged?.call(
+        northDeg: north,
+        southDeg: south,
+        facingText: facingText,
+        sittingText: sittingText,
+        northIndex24: northIdx,
+        southIndex24: southIdx,
+      );
+    }
   }
 
   int _degTo24Index(double deg) {
@@ -245,7 +272,6 @@ class _CompassPageState extends State<CompassPage> {
   }
 
   String _to8Dir(double deg, {bool useTraditional = false}) {
-    // 简/繁里其实就“东→東”
     const dirs = ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
     int idx = ((deg + 22.5) / 45).floor() % 8;
     String d = dirs[idx];
@@ -267,7 +293,6 @@ class _CompassPageState extends State<CompassPage> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 水平指示
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
                   child: _buildLevelIndicator(_isLevel),
@@ -281,7 +306,6 @@ class _CompassPageState extends State<CompassPage> {
                       southBaseDeg: _southBaseHeading,
                       showCrosshair: _showCrosshair,
                       useTraditional: widget.useTraditional,
-                      // 如果你想传 flutter_open_chinese_convert 的函数进来就这样：
                       tr: widget.tr,
                     ),
                   ),
@@ -289,7 +313,6 @@ class _CompassPageState extends State<CompassPage> {
                 const SizedBox(height: 8),
               ],
             ),
-            // 左下开关
             Positioned(
               left: 16,
               bottom: 16,
@@ -306,6 +329,7 @@ class _CompassPageState extends State<CompassPage> {
                   ),
                 ),
                 onPressed: () {
+                  if (!mounted) return;
                   setState(() {
                     _showCrosshair = !_showCrosshair;
                   });
@@ -320,7 +344,6 @@ class _CompassPageState extends State<CompassPage> {
                 ),
               ),
             ),
-            // 右上准确度+修正
             Positioned(
               top: 0,
               right: 12,
