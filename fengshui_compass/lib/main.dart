@@ -217,7 +217,7 @@ class _RootTabsState extends State<RootTabs> {
         currentIndex: _currentIndex,
         onTap: (i) async {
           if (i == 2) {
-            final ok = await _showAnalysisPrompt(context, t);
+            final ok = await _showAnalysisPrompt(context);
             if (!ok) return;
           }
           setState(() {
@@ -260,35 +260,38 @@ class _RootTabsState extends State<RootTabs> {
     );
   }
 
-  // 这个跟你原来的一样，只是我加了同步的 t(...) 进来
-  Future<bool> _showAnalysisPrompt(
-    BuildContext context,
-    String Function(String, String) t,
-  ) async {
-    final String doorFromCompass = _to8Dir(_currentHeadingDeg);
+  Future<bool> _showAnalysisPrompt(BuildContext context) async {
+    // 假设你在 RootTabs 里已经有这个开关
+    final bool useTraditional = false; // ← 如果你有 _useTraditional 就用那个
 
+    // 1. 根据当前语言准备下拉选项
+    final doorOptions = useTraditional
+        ? ['正北', '東北', '正東', '東南', '正南', '西南', '正西', '西北']
+        : ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
+
+    final industries = useTraditional
+        ? ['住宅/自住', '建築/工程/裝修', '零售/餐飲/店面', '教育/培訓', '金融/投資', '工廠/倉儲', '其他']
+        : ['住宅/自住', '建筑/工程/装修', '零售/餐饮/店面', '教育/培训', '金融/投资', '工厂/仓储', '其他'];
+
+    // 用当前罗盘方位自动生成一个 8 方位作为默认大门
+    final String doorFromCompass = _to8Dir(_currentHeadingDeg, useTraditional);
+
+    // 2. 取你之前存的值
     String doorDir = _selectedDoorDir.isNotEmpty
         ? _selectedDoorDir
         : doorFromCompass;
     int moveInYear = _selectedMoveInYear;
     String industry = _selectedIndustry;
 
-    final years = List<int>.generate(40, (i) => 2025 - i);
-    final doorOptions = ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北']
-        .map(
-          (e) => widget.useTraditional
-              ? e
-                    .replaceAll('东', '東')
-                    .replaceAll('西', '西')
-                    .replaceAll('南', '南')
-                    .replaceAll('北', '北')
-              : e,
-        )
-        .toList();
+    // 3. 【关键】如果之前存的是简体，现在切成繁体，items 里找不到，就置空
+    if (!doorOptions.contains(doorDir)) {
+      doorDir = '';
+    }
+    if (!industries.contains(industry)) {
+      industry = '';
+    }
 
-    final industries = widget.useTraditional
-        ? ['住宅/自住', '建築/工程/裝修', '零售/餐飲/店面', '教育/培訓', '金融/投資', '工廠/倉儲', '其他']
-        : ['住宅/自住', '建筑/工程/装修', '零售/餐饮/店面', '教育/培训', '金融/投资', '工厂/仓储', '其他'];
+    final years = List<int>.generate(40, (i) => 2025 - i); // 2025~1986
 
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -320,7 +323,9 @@ class _RootTabsState extends State<RootTabs> {
                     ),
                   ),
                   Text(
-                    t('请选择相应的大门方位、入住年份及行业后再查看分析', '請選擇相應的大門方位、入住年份及行業後再查看分析'),
+                    useTraditional
+                        ? '请选择相应的大门方位、入住年份及行业后再查看分析'
+                        : '請選擇相應的大門方位、入住年份及行業後再查看分析',
                     style: const TextStyle(
                       fontSize: 14.5,
                       fontWeight: FontWeight.w600,
@@ -328,10 +333,9 @@ class _RootTabsState extends State<RootTabs> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    t(
-                      '提示：进入分析前，请把手机正对大门量一次，系统会自动把当前罗盘方位当成大门方位。',
-                      '提示：進入分析前，請把手機正對大門量一次，系統會自動把當前羅盤方位當成大門方位。',
-                    ),
+                    useTraditional
+                        ? '提示：进入分析前，请把手机正对大门量一次，系统会自动把当前罗盘方位当成大门方位。'
+                        : '提示：進入分析前，請把手機正對大門量一次，系統會自動把當前羅盤方位當成大門方位。',
                     style: const TextStyle(
                       fontSize: 12.5,
                       color: Colors.white54,
@@ -344,7 +348,7 @@ class _RootTabsState extends State<RootTabs> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      t('大门方位', '大門方位'),
+                      useTraditional ? '大門方位' : '大门方位',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.85),
@@ -354,7 +358,8 @@ class _RootTabsState extends State<RootTabs> {
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     dropdownColor: Colors.grey.shade900,
-                    value: doorDir.isNotEmpty ? doorDir : null,
+                    // 【关键】只在包含时才给 value
+                    value: doorOptions.contains(doorDir) ? doorDir : null,
                     items: doorOptions
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                         .toList(),
@@ -365,13 +370,14 @@ class _RootTabsState extends State<RootTabs> {
                       });
                     },
                   ),
+
                   const SizedBox(height: 12),
 
                   // 入住年份
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      t('入住年份', '入住年份'),
+                      useTraditional ? '入住年份' : '入住年份',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.85),
@@ -394,13 +400,14 @@ class _RootTabsState extends State<RootTabs> {
                       });
                     },
                   ),
+
                   const SizedBox(height: 12),
 
                   // 行业
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      t('行业', '行業'),
+                      useTraditional ? '行業' : '行业',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.white.withOpacity(0.85),
@@ -410,7 +417,8 @@ class _RootTabsState extends State<RootTabs> {
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     dropdownColor: Colors.grey.shade900,
-                    value: industry.isNotEmpty ? industry : null,
+                    // 【关键】这里也要这样
+                    value: industries.contains(industry) ? industry : null,
                     items: industries
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                         .toList(),
@@ -428,7 +436,7 @@ class _RootTabsState extends State<RootTabs> {
                       Expanded(
                         child: TextButton(
                           onPressed: () => Navigator.of(ctx).pop(false),
-                          child: Text(t('取消', '取消')),
+                          child: Text(useTraditional ? '取消' : '取消'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -443,7 +451,9 @@ class _RootTabsState extends State<RootTabs> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                    t('请先选择大门方位和入住年份', '請先選擇大門方位和入住年份'),
+                                    useTraditional
+                                        ? '请先选择大门方位和入住年份'
+                                        : '請先選擇大門方位和入住年份',
                                   ),
                                   duration: const Duration(seconds: 1),
                                 ),
@@ -457,7 +467,7 @@ class _RootTabsState extends State<RootTabs> {
                             });
                             Navigator.of(ctx).pop(true);
                           },
-                          child: Text(t('确定', '確定')),
+                          child: Text(useTraditional ? '确定' : '確定'),
                         ),
                       ),
                     ],
@@ -470,6 +480,14 @@ class _RootTabsState extends State<RootTabs> {
         );
       },
     );
+
+    if (result == true) {
+      setState(() {
+        _selectedDoorDir = doorDir;
+        _selectedMoveInYear = moveInYear;
+        _selectedIndustry = industry;
+      });
+    }
 
     return result ?? false;
   }
@@ -490,8 +508,10 @@ class _RootTabsState extends State<RootTabs> {
     );
   }
 
-  String _to8Dir(double deg) {
-    final dirs = ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
+  String _to8Dir(double deg, bool useTraditional) {
+    final dirs = useTraditional
+        ? ['正北', '東北', '正東', '東南', '正南', '西南', '正西', '西北']
+        : ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
     int idx = ((deg + 22.5) / 45).floor() % 8;
     return dirs[idx];
   }

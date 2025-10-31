@@ -132,10 +132,10 @@ class _AnalysisPageState extends State<AnalysisPage> {
     String cheatTip = '';
     if (widget.cheatMode == CheatMode.wangCaiWangDing) {
       pattern = FengshuiPattern.wangCaiWangDing;
-      cheatTip = zhTW ? '⚠ 當前為作弊模式：固定顯示【旺財旺丁】' : '⚠ 当前为作弊模式：固定显示【旺财旺丁】';
+      // cheatTip = zhTW ? '⚠ 當前為作弊模式：固定顯示【旺財旺丁】' : '⚠ 当前为作弊模式：固定显示【旺财旺丁】';
     } else if (widget.cheatMode == CheatMode.wangCaiBuWangDing) {
       pattern = FengshuiPattern.wangCaiBuWangDing;
-      cheatTip = zhTW ? '⚠ 當前為作弊模式：固定顯示【旺財不旺丁】' : '⚠ 当前为作弊模式：固定显示【旺财不旺丁】';
+      // cheatTip = zhTW ? '⚠ 當前為作弊模式：固定顯示【旺財不旺丁】' : '⚠ 当前为作弊模式：固定显示【旺财不旺丁】';
     } else {
       pattern = calcFengshuiPattern(
         period: period,
@@ -165,25 +165,25 @@ class _AnalysisPageState extends State<AnalysisPage> {
             // 标题 + 长按作弊
             GestureDetector(
               onLongPress: () {
-                widget.onCycleCheatMode?.call();
-                String msg;
-                switch (widget.cheatMode) {
-                  case CheatMode.off:
-                    msg = zhTW ? '作弊模式：下一檔 → 旺財旺丁' : '作弊模式：下一档 → 旺财旺丁';
-                    break;
-                  case CheatMode.wangCaiWangDing:
-                    msg = zhTW ? '作弊模式：下一檔 → 旺財不旺丁' : '作弊模式：下一档 → 旺财不旺丁';
-                    break;
-                  case CheatMode.wangCaiBuWangDing:
-                    msg = zhTW ? '作弊模式：關閉' : '作弊模式：关闭';
-                    break;
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(msg),
-                    duration: const Duration(seconds: 1),
-                  ),
-                );
+                // widget.onCycleCheatMode?.call();
+                // String msg;
+                // switch (widget.cheatMode) {
+                //   case CheatMode.off:
+                //     msg = zhTW ? '作弊模式：下一檔 → 旺財旺丁' : '作弊模式：下一档 → 旺财旺丁';
+                //     break;
+                //   case CheatMode.wangCaiWangDing:
+                //     msg = zhTW ? '作弊模式：下一檔 → 旺財不旺丁' : '作弊模式：下一档 → 旺财不旺丁';
+                //     break;
+                //   case CheatMode.wangCaiBuWangDing:
+                //     msg = zhTW ? '作弊模式：關閉' : '作弊模式：关闭';
+                //     break;
+                // }
+                // ScaffoldMessenger.of(context).showSnackBar(
+                //   SnackBar(
+                //     content: Text(msg),
+                //     duration: const Duration(seconds: 1),
+                //   ),
+                // );
               },
               child: Row(
                 children: [
