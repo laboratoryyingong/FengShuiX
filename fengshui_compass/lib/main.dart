@@ -8,25 +8,40 @@ import 'pages/analysis_page.dart';
 import 'pages/help_page.dart';
 import 'package:fengshui_compass/models/cheat_mode.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_analytics/observer.dart';
+
+import 'firebase_options.dart';
+
 Future<void> main() async {
-  // 有些时候要先确保 binding 初始化
   WidgetsFlutterBinding.ensureInitialized();
-  // 这个包不需要全局 init，但提早 binding 是好的
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const FengshuiApp());
 }
 
 class FengshuiApp extends StatefulWidget {
   const FengshuiApp({super.key});
 
+  // 全局 analytics 实例（你原来就这样写的）
+  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+
   @override
   State<FengshuiApp> createState() => _FengshuiAppState();
 }
 
 class _FengshuiAppState extends State<FengshuiApp> {
+  // ← 在 state 里建一个 observer，这样只建一次
+  late final FirebaseAnalyticsObserver _observer = FirebaseAnalyticsObserver(
+    analytics: FengshuiApp.analytics,
+  );
+
   /// true = 用繁體（S2TW）
   bool _useTraditional = false;
 
-  /// 简 → 繁 的本地缓存，防止同一句话每次都转
+  /// 简 → 繁 的本地缓存
   final Map<String, String> _convertCache = {};
 
   void _toggleLang() {
@@ -35,18 +50,13 @@ class _FengshuiAppState extends State<FengshuiApp> {
     });
   }
 
-  /// 自动简转繁（用 flutter_open_chinese_convert）
-  /// 用法：await _tr("风水罗盘")
   Future<String> _tr(String text) async {
-    // 不用繁体就直接返回
     if (!_useTraditional) return text;
 
-    // 先查缓存
     if (_convertCache.containsKey(text)) {
       return _convertCache[text]!;
     }
 
-    // 用 S2TW（简体 → 台湾繁体）你也可以换成 S2T / S2HK / S2TWp
     final converted = await ChineseConverter.convert(text, S2TW());
     _convertCache[text] = converted;
     return converted;
@@ -63,7 +73,9 @@ class _FengshuiAppState extends State<FengshuiApp> {
       theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
       debugShowCheckedModeBanner: false,
 
-      // 把开关和转换函数往下传
+      // ✅ 这里用我们刚刚建好的 observer
+      navigatorObservers: [_observer],
+
       home: RootTabs(
         onToggleLang: _toggleLang,
         useTraditional: _useTraditional,
@@ -71,13 +83,11 @@ class _FengshuiAppState extends State<FengshuiApp> {
       ),
 
       builder: (context, child) {
-        // 全局放大
         Widget body = MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaleFactor: 1.5),
           child: child!,
         );
 
-        // 强制用 zh_TW / zh_CN（路线 C）
         body = Localizations.override(
           context: context,
           locale: currentLocale,
@@ -87,7 +97,6 @@ class _FengshuiAppState extends State<FengshuiApp> {
         return body;
       },
 
-      // 本地化
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -113,7 +122,6 @@ class RootTabs extends StatefulWidget {
 
   final VoidCallback onToggleLang;
   final bool useTraditional;
-  // 这是上面传下来的自动转换函数（async）
   final Future<String> Function(String text) tr;
 
   @override
@@ -124,7 +132,6 @@ class _RootTabsState extends State<RootTabs> {
   int _currentIndex = 0;
   CheatMode _cheatMode = CheatMode.off;
 
-  // 罗盘实时数据（保持你原来的）
   double _currentHeadingDeg = 0;
   double _currentSouthDeg = 180;
   String _currentFacingText = '';
@@ -132,7 +139,6 @@ class _RootTabsState extends State<RootTabs> {
   int _currentNorthIndex24 = 1;
   int _currentSouthIndex24 = 13;
 
-  // 分析弹窗选的
   String _selectedDoorDir = '';
   int _selectedMoveInYear = 2025;
   String _selectedIndustry = '';
@@ -173,15 +179,13 @@ class _RootTabsState extends State<RootTabs> {
 
   @override
   Widget build(BuildContext context) {
-    // ① 先来个同步的，用于我们已经知道繁体怎么写的情况
     String t(String zhCN, String zhTW) => widget.useTraditional ? zhTW : zhCN;
 
-    // ② 下面四个页面
     final pages = [
       CompassPage(
         onHeadingChanged: _onHeadingFromCompass,
         useTraditional: widget.useTraditional,
-        tr: widget.tr, // 如果你想把 async 转换也带下来
+        tr: widget.tr,
       ),
       TipsPage(useTraditional: widget.useTraditional, tr: widget.tr),
       AnalysisPage(
@@ -196,14 +200,14 @@ class _RootTabsState extends State<RootTabs> {
         industry: _selectedIndustry,
         cheatMode: _cheatMode,
         onCycleCheatMode: _cycleCheatMode,
-        useTraditional: widget.useTraditional, // ← 新增
-        tr: widget.tr, // ← 如果你 main 里有转函数的话
+        useTraditional: widget.useTraditional,
+        tr: widget.tr,
       ),
       HelpPage(
         cheatMode: _cheatMode,
         onCycleCheatMode: _cycleCheatMode,
         useTraditional: widget.useTraditional,
-        tr: widget.tr, // 要是你想用 async 转的也可以传
+        tr: widget.tr,
       ),
     ];
 
@@ -224,7 +228,6 @@ class _RootTabsState extends State<RootTabs> {
             _currentIndex = i;
           });
         },
-        // 这里我们用“同步”的繁体（写死的），因为 BottomNavigationBar 不适合等 Future
         items: [
           BottomNavigationBarItem(
             icon: const Icon(Icons.explore),
@@ -244,8 +247,6 @@ class _RootTabsState extends State<RootTabs> {
           ),
         ],
       ),
-
-      // 右下角切换 简 / 繁
       floatingActionButton: FloatingActionButton(
         backgroundColor: Colors.amber,
         onPressed: widget.onToggleLang,
@@ -261,10 +262,9 @@ class _RootTabsState extends State<RootTabs> {
   }
 
   Future<bool> _showAnalysisPrompt(BuildContext context) async {
-    // 假设你在 RootTabs 里已经有这个开关
-    final bool useTraditional = false; // ← 如果你有 _useTraditional 就用那个
+    // 这里你原来写死了 false，我先给你保留原样
+    final bool useTraditional = false;
 
-    // 1. 根据当前语言准备下拉选项
     final doorOptions = useTraditional
         ? ['正北', '東北', '正東', '東南', '正南', '西南', '正西', '西北']
         : ['正北', '东北', '正东', '东南', '正南', '西南', '正西', '西北'];
@@ -273,17 +273,14 @@ class _RootTabsState extends State<RootTabs> {
         ? ['住宅/自住', '建築/工程/裝修', '零售/餐飲/店面', '教育/培訓', '金融/投資', '工廠/倉儲', '其他']
         : ['住宅/自住', '建筑/工程/装修', '零售/餐饮/店面', '教育/培训', '金融/投资', '工厂/仓储', '其他'];
 
-    // 用当前罗盘方位自动生成一个 8 方位作为默认大门
     final String doorFromCompass = _to8Dir(_currentHeadingDeg, useTraditional);
 
-    // 2. 取你之前存的值
     String doorDir = _selectedDoorDir.isNotEmpty
         ? _selectedDoorDir
         : doorFromCompass;
     int moveInYear = _selectedMoveInYear;
     String industry = _selectedIndustry;
 
-    // 3. 【关键】如果之前存的是简体，现在切成繁体，items 里找不到，就置空
     if (!doorOptions.contains(doorDir)) {
       doorDir = '';
     }
@@ -291,7 +288,7 @@ class _RootTabsState extends State<RootTabs> {
       industry = '';
     }
 
-    final years = List<int>.generate(40, (i) => 2025 - i); // 2025~1986
+    final years = List<int>.generate(40, (i) => 2025 - i);
 
     final result = await showModalBottomSheet<bool>(
       context: context,
@@ -343,7 +340,6 @@ class _RootTabsState extends State<RootTabs> {
                     ),
                   ),
                   const SizedBox(height: 14),
-
                   // 大门方位
                   Align(
                     alignment: Alignment.centerLeft,
@@ -358,7 +354,6 @@ class _RootTabsState extends State<RootTabs> {
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     dropdownColor: Colors.grey.shade900,
-                    // 【关键】只在包含时才给 value
                     value: doorOptions.contains(doorDir) ? doorDir : null,
                     items: doorOptions
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -370,9 +365,7 @@ class _RootTabsState extends State<RootTabs> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 12),
-
                   // 入住年份
                   Align(
                     alignment: Alignment.centerLeft,
@@ -400,9 +393,7 @@ class _RootTabsState extends State<RootTabs> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 12),
-
                   // 行业
                   Align(
                     alignment: Alignment.centerLeft,
@@ -417,7 +408,6 @@ class _RootTabsState extends State<RootTabs> {
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
                     dropdownColor: Colors.grey.shade900,
-                    // 【关键】这里也要这样
                     value: industries.contains(industry) ? industry : null,
                     items: industries
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -429,7 +419,6 @@ class _RootTabsState extends State<RootTabs> {
                       });
                     },
                   ),
-
                   const SizedBox(height: 18),
                   Row(
                     children: [
@@ -472,7 +461,7 @@ class _RootTabsState extends State<RootTabs> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 184),
                 ],
               );
             },

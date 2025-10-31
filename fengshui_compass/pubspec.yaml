@@ -14,6 +14,8 @@ dependencies:
   flutter_compass: ^0.8.1
   sensors_plus: ^7.0.0
   flutter_open_chinese_convert: ^0.7.0
+  firebase_core: ^4.2.0
+  firebase_analytics: ^12.0.3
 
 dev_dependencies:
   flutter_test:
